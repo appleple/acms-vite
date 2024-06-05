@@ -1,0 +1,6 @@
+composer.phar
+vendor
+node_modules
+.DS_Store
+.idea
+/Vite
