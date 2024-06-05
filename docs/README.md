@@ -85,9 +85,14 @@ VITE_MANIFEST_PATH=dist/.vite/manifest.json
 VITE_DEV_SERVER_URL=http://localhost:5173
 ```
 
-`VITE_ENVIRONMENT` には `development` または `production` を指定します。この値が `development` の場合、Vite の開発サーバーを利用します。`production` の場合はビルドされたアセットを利用します。
-`VITE_MANIFEST_PATH` にはビルドされたアセットのパスを利用しているテーマディレクトリから指定します。
-`VITE_DEV_SERVER_URL` には Vite の開発サーバーの URL を指定します。
+以下、環境変数の説明です。
+
+| 変数名               | 説明                                                                 |
+|---------------------|----------------------------------------------------------------------|
+| `VITE_ENVIRONMENT`  | `development` または `production` を指定します。`development` の場合、Vite の開発サーバーを利用し、`production` の場合はビルドされたアセットを利用します。 |
+| `VITE_MANIFEST_PATH`| ビルドされたアセットのパスを利用しているテーマディレクトリから指定します。                    |
+| `VITE_DEV_SERVER_URL`| Vite の開発サーバーの URL を指定します。                               |
+
 
 ## 設定
 
