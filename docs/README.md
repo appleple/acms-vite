@@ -90,7 +90,7 @@ VITE_DEV_SERVER_URL=http://localhost:5173
 | 変数名               | 説明                                                                 |
 |---------------------|----------------------------------------------------------------------|
 | `VITE_ENVIRONMENT`  | `development` または `production` を指定します。`development` の場合、Vite の開発サーバーを利用し、`production` の場合はビルドされたアセットを利用します。 |
-| `VITE_MANIFEST_PATH`| ビルドされたアセットのパスを利用しているテーマディレクトリから指定します。                    |
+| `VITE_MANIFEST_PATH`| `manifest.json` のパスを利用しているテーマディレクトリから指定します。                    |
 | `VITE_DEV_SERVER_URL`| Vite の開発サーバーの URL を指定します。                               |
 
 
@@ -158,3 +158,36 @@ export default defineConfig({
   })
 </head>
 ```
+
+## React の利用
+
+React と `@vitejs/plugin-react` を利用する場合、既存の `@vite` と一緒に、追加で `@viteReactRefresh` を追加する必要があります。
+
+```html
+<!DOCTYPE html>
+<head>
+  @viteReactRefresh
+  @vite('src/js/main.jsx')
+</head>
+```
+
+`@viteReactRefresh` は、React の Hot Module Replacement を有効にするためのスクリプトを出力します。
+
+```html
+<script type="module">
+  import RefreshRuntime from 'http://localhost:5173/@react-refresh'
+  RefreshRuntime.injectIntoGlobalHook(window)
+  window.$RefreshReg$ = () => {}
+  window.$RefreshSig$ = () => (type) => type
+  window.__vite_plugin_react_preamble_installed__ = true
+</script>
+```
+
+## グローバル変数
+
+本拡張アプリをインストールすることで、以下のグローバル変数が利用できるようになります。
+
+| グローバル変数名               | 説明                                                                 |
+|---------------------|----------------------------------------------------------------------|
+| `%{VITE_ENVIRONMENT}`  | .env で設定した `VITE_ENVIRONMENT` の値（`development` または `production`）です。`development` の場合、Vite の開発サーバーを利用し、`production` の場合はビルドされたアセットを利用します。 |
+| `%{VITE_DEV_SERVER_URL}`| .env で設定した `VITE_ENVIRONMENT` の値です。Vite の開発サーバーの URL を出力します。                               |
