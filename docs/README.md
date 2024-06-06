@@ -145,7 +145,7 @@ export default defineConfig({
 ```html
 <!DOCTYPE html>
 <head>
-  @vite('src/js/main.css', {
+  @vite('src/styles/main.css', {
     "linkTagAttributes": {
       "type": "text/css"
     }
