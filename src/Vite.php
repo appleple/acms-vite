@@ -1,31 +1,43 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Acms\Plugins\Vite;
 
+use Acms\Plugins\Vite\Exceptions\ManifestNotFoundException;
 use Acms\Services\Facades\Cache;
 use Acms\Services\Facades\Storage;
+use Acms\Services\Facades\Logger;
+use Acms\Services\Facades\Common;
 
 class Vite
 {
+    private const DEFAULT_VITE_DEV_SERVER_URL = 'http://localhost:5173';
+
+    private const DEFAULT_MANIFEST_PATHS = [
+        'dist/manifest.json',
+        'dist/.vite/manifest.json',
+    ];
+
     /**
      * @var \Acms\Services\Cache\Contracts\AdapterInterface
      */
-    protected $cache;
+    private $cache;
 
     /**
      * @var string
      */
-    protected $devServerUrl;
+    private $devServerUrl;
 
     /**
      * @var string
      */
-    protected $manifestPath;
+    private $manifestPath;
 
     /**
-     * @var 'development' | 'production
+     * @var 'development' | 'production'
      */
-    protected $environment;
+    private $environment;
 
     /**
      * Constructor
@@ -46,9 +58,12 @@ class Vite
 
     /**
      * Generate HTML
+     * @see https://vitejs.dev/guide/backend-integration.html
      * @param string|string[] $entrypoints
      * @param array{
      *   outDir?: string,
+     *   scriptTagAttributes?: array<string, mixed>,
+     *   linkTagAttributes?: array<string, mixed>,
      * } $options
      * @return string
      */
@@ -57,33 +72,34 @@ class Vite
         $entrypoints = is_string($entrypoints) ? [$entrypoints] : $entrypoints;
         $defaultOptions = [
             'outDir' => 'dist',
-            'entrypointAttribute' => [
-                'script' => [],
-                'link' => []
-            ]
+            'scriptTagAttributes' => [],
+            'linkTagAttributes' => [],
         ];
 
         /**
          * @var array{
          *  outDir: string,
-         *  entrypointAttribute: array{
-         *    script: array<string, mixed>,
-         *    link: array<string, mixed>,
-         *  },
+         *  scriptTagAttributes: array<string, mixed>,
+         *  linkTagAttributes: array<string, mixed>,
          * } $config
          */
         $config = array_merge($defaultOptions, $options);
 
         $cssLinkTags = $this->createCssLinkTags($entrypoints, $config['outDir']);
         $importedChankLinkTags = $this->createImportedChankLinkTags($entrypoints, $config['outDir']);
-        $entrypointTags = $this->createEntrypointTags($entrypoints, $config['outDir'], $config['entrypointAttribute']);
+        $entrypointTags = $this->createEntrypointTags(
+            $entrypoints,
+            $config['outDir'],
+            $config['scriptTagAttributes'],
+            $config['linkTagAttributes']
+        );
         $modulePreloadLinkTags = $this->createModulePreloadLinkTags($entrypoints, $config['outDir']);
         return $cssLinkTags . "\n" . $importedChankLinkTags . "\n" . $entrypointTags . "\n" . $modulePreloadLinkTags;
     }
 
     public function generateReactRefreshHtml(): string
     {
-        if (!$this->isDevelopmentMode()) {
+        if (!$this->shouldUseDevServer()) {
             return '';
         }
         return sprintf(
@@ -96,31 +112,47 @@ class Vite
                 window.__vite_plugin_react_preamble_installed__ = true
             </script>
             HTML,
-            $this->devServerUrl . '/@react-refresh'
+            $this->getDevServerUrl() . '/@react-refresh'
         );
+    }
+
+    /**
+     * Get environment
+     * @return 'development' | 'production'
+     */
+    public function getEnvironment()
+    {
+        return $this->shouldUseDevServer() ? 'development' : 'production';
+    }
+
+    public function getDevServerUrl()
+    {
+        if ($this->devServerUrl !== '') {
+            return $this->devServerUrl;
+        }
+        return self::DEFAULT_VITE_DEV_SERVER_URL;
     }
 
     /**
      * Create script tags
      * @param string[] $entrypoints
      * @param string $outDir
-     * @param array{
-     *   script?: array<string, mixed>,
-     *   link?: array<string, mixed>,
-     * } $attributes
+     * @param array<string, mixed> $scriptAttributes
+     * @param array<string, mixed> $linkAttributes
      * @return string
      */
-    public function createEntrypointTags(
+    private function createEntrypointTags(
         array $entrypoints,
         string $outDir,
-        array $attribute = []
+        array $scriptAttributes = [],
+        array $linkAttributes = []
     ): string {
-        if ($this->isDevelopmentMode()) {
+        if ($this->shouldUseDevServer()) {
             $scriptTags = array_map(
                 function (string $entrypoint) {
                     $attributes = [
                         'type' => 'module',
-                        'src' => $this->devServerUrl . '/' . $entrypoint,
+                        'src' => $this->getDevServerUrl() . '/' . $entrypoint,
                     ];
                     return $this->createScriptTag($attributes);
                 },
@@ -128,7 +160,7 @@ class Vite
             );
             return $this->createScriptTag([
                 'type' => 'module',
-                'src' => $this->devServerUrl . '/@vite/client'
+                'src' => $this->getDevServerUrl() . '/@vite/client'
             ]) . "\n" . implode("\n", $scriptTags);
         }
 
@@ -141,14 +173,14 @@ class Vite
         }
 
         $tags = array_map(
-            function (string $path) use ($attribute) {
+            function (string $path) use ($scriptAttributes, $linkAttributes) {
                 if ($this->isCssPath($path)) {
                     $attributes = array_merge(
                         [
                             'rel' => 'stylesheet',
                             'href' => $path,
                         ],
-                        $attribute['link'] ?? []
+                        $linkAttributes
                     );
                     return $this->createLinkTag($attributes);
                 }
@@ -157,7 +189,7 @@ class Vite
                         'type' => 'module',
                         'src' => $path,
                     ],
-                    $attribute['script'] ?? []
+                    $scriptAttributes
                 );
                 return $this->createScriptTag($attributes);
             },
@@ -172,9 +204,9 @@ class Vite
      * @param string $outDir
      * @return string
      */
-    public function createCssLinkTags(array $entrypoints, string $outDir): string
+    private function createCssLinkTags(array $entrypoints, string $outDir): string
     {
-        if ($this->isDevelopmentMode()) {
+        if ($this->shouldUseDevServer()) {
             return '';
         }
 
@@ -206,9 +238,9 @@ class Vite
      * @param string $outDir
      * @return string
      */
-    public function createImportedChankLinkTags(array $entrypoints, string $outDir): string
+    private function createImportedChankLinkTags(array $entrypoints, string $outDir): string
     {
-        if ($this->isDevelopmentMode()) {
+        if ($this->shouldUseDevServer()) {
             return '';
         }
 
@@ -243,11 +275,11 @@ class Vite
      * @param string $outDir
      * @return string
      */
-    public function createModulePreloadLinkTags(
+    private function createModulePreloadLinkTags(
         array $entrypoints,
         string $outDir
     ): string {
-        if ($this->isDevelopmentMode()) {
+        if ($this->shouldUseDevServer()) {
             return '';
         }
 
@@ -274,7 +306,11 @@ class Vite
         return implode("\n", $linkTags);
     }
 
-    public function isDevelopmentMode()
+    /**
+     * Determine whether to use the development server.
+     * @return bool
+     */
+    private function shouldUseDevServer(): bool
     {
         return $this->environment === 'development';
     }
@@ -283,22 +319,47 @@ class Vite
      * Get manifest
      * @return array<string, mixed>
      */
-    protected function getManifest(): array
+    private function getManifest(): array
     {
-        $path = findTemplate($this->manifestPath);
-        if ($this->cache->has(md5($path))) {
-            return json_decode($this->cache->get(md5($path)), true);
+        $path = $this->getManifestPath();
+        $cacheKey = md5($path);
+        if ($this->cache->has($cacheKey)) {
+            return json_decode($this->cache->get($cacheKey), true);
         }
         try {
             $manifest = Storage::get($path);
             if (empty($manifest)) {
-                throw new \RuntimeException('Empty Manifest.');
+                throw new ManifestNotFoundException('Manifest file not found.');
             }
         } catch (\Exception $e) {
+            Logger::error('【Vite plugin】manifest.json を取得できませんでした。', Common::exceptionArray($e));
             return [];
         }
-        $this->cache->put(md5($path), $manifest);
+        $this->cache->put($cacheKey, $manifest);
         return json_decode($manifest, true);
+    }
+
+    /**
+     * Get manifest path
+     * @return string
+     */
+    private function getManifestPath(): string
+    {
+        // Check if manifest is present in the specified path.
+        $manifestPath = findTemplate($this->manifestPath);
+        if (is_string($manifestPath)) {
+            return $manifestPath;
+        }
+
+        // Check if manifest is present in one of the default locations.
+        foreach (self::DEFAULT_MANIFEST_PATHS as $path) {
+            $manifestPath = findTemplate($path);
+            if (is_string($manifestPath) && Storage::exists($manifestPath)) {
+                return $manifestPath;
+            }
+        }
+
+        return '';
     }
 
     /**
@@ -307,7 +368,7 @@ class Vite
      * @param array $attributes
      * @return array
      */
-    protected function parseAttributes($attributes)
+    private function parseAttributes(array $attributes): array
     {
         $attributes = array_filter(
             $attributes,
@@ -359,7 +420,7 @@ class Vite
      * @param string $path
      * @return bool
      */
-    protected function isCssPath($path)
+    private function isCssPath(string $path): bool
     {
         return preg_match('/\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/', $path) === 1;
     }

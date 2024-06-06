@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Acms\Plugins\Vite;
 
 use ACMS_App;

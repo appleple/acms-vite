@@ -76,22 +76,20 @@ head タグ内 `@vite()` を追加します。
 </head>
 ```
 
-次に、a-blog cms 設置ディレクトリにある .env ファイルに以下の設定を追加します。
+これで、Vite の開発サーバーからビルドされたアセットが読み込まれるようになります。
+
+### 本番環境での利用
+
+Vite で本番環境用ビルドしたアセットを読み込めるようにするためには、a-blog cms 設置ディレクトリにある .env ファイルを編集します。
+
+以下のように `VITE_ENVIRONMENT` に `production` を指定します。
 
 ```
 # Vite
 VITE_ENVIRONMENT=production # development | production
-VITE_MANIFEST_PATH=dist/.vite/manifest.json
-VITE_DEV_SERVER_URL=http://localhost:5173
 ```
 
-以下、環境変数の説明です。
-
-| 変数名               | 説明                                                                 |
-|---------------------|----------------------------------------------------------------------|
-| `VITE_ENVIRONMENT`  | `development` または `production` を指定します。`development` の場合、Vite の開発サーバーを利用し、`production` の場合はビルドされたアセットを利用します。 |
-| `VITE_MANIFEST_PATH`| `manifest.json` のパスを利用しているテーマディレクトリから指定します。                    |
-| `VITE_DEV_SERVER_URL`| Vite の開発サーバーの URL を指定します。                               |
+これで、Vite で本番環境用ビルドしたアセットが読み込まれるようになります。
 
 
 ## 設定
@@ -134,10 +132,8 @@ export default defineConfig({
 <!DOCTYPE html>
 <head>
   @vite('src/js/main.js', {
-    "entrypointAttribute": {
-      "script": {
-        "async": true
-      }
+    "scriptTagAttributes": {
+      "async": true
     }
   })
 </head>
@@ -150,10 +146,8 @@ export default defineConfig({
 <!DOCTYPE html>
 <head>
   @vite('src/js/main.js', {
-    "entrypointAttribute": {
-      "link": {
-        "type": "text/css"
-      }
+    "linkTagAttributes": {
+      "type": "text/css"
     }
   })
 </head>
@@ -189,5 +183,17 @@ React と `@vitejs/plugin-react` を利用する場合、既存の `@vite` と�
 
 | グローバル変数名               | 説明                                                                 |
 |---------------------|----------------------------------------------------------------------|
-| `%{VITE_ENVIRONMENT}`  | .env で設定した `VITE_ENVIRONMENT` の値（`development` または `production`）です。`development` の場合、Vite の開発サーバーを利用し、`production` の場合はビルドされたアセットを利用します。 |
-| `%{VITE_DEV_SERVER_URL}`| .env で設定した `VITE_ENVIRONMENT` の値です。Vite の開発サーバーの URL を出力します。                               |
+| `%{VITE_ENVIRONMENT}`  | 現在の Vite の動作モードの値を出力します（`development` または `production`）です。`development` の場合、Vite の開発サーバーを利用し、`production` の場合はビルドされたアセットを利用します。 |
+| `%{VITE_DEV_SERVER_URL}`| Vite 開発サーバーのURLを出力します。Vite の開発サーバーの URL を出力します。                               |
+
+## 高度なカスタマイズ
+
+環境変数を利用して、Vite の設定をカスタマイズすることができます。
+
+以下、環境変数の説明です。
+
+| 変数名               | 説明                                                                 |
+|---------------------|----------------------------------------------------------------------|
+| `VITE_ENVIRONMENT`  | `development` または `production` を指定します。`development` の場合、Vite の開発サーバーを利用し、`production` の場合はビルドされたアセットを利用します。 |
+| `VITE_MANIFEST_PATH`| `manifest.json` のパスを利用しているテーマディレクトリから指定します。                    |
+| `VITE_DEV_SERVER_URL`| Vite の開発サーバーの URL を指定します。                               |
