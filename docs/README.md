@@ -189,6 +189,14 @@ React と `@vitejs/plugin-react` を利用する場合、既存の `@vite` と�
 ## 高度なカスタマイズ
 
 環境変数を利用して、Vite の設定をカスタマイズすることができます。
+a-blog cms設置ディレクトリにある .env ファイルを編集することで環境変数を設定することができます。
+
+```
+# Vite
+VITE_ENVIRONMENT=production # development | production
+VITE_MANIFEST_PATH=dist/.vite/manifest.json
+VITE_DEV_SERVER_URL=http://localhost:5173
+```
 
 以下、環境変数の説明です。
 
