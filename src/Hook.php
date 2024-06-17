@@ -55,7 +55,7 @@ class Hook
             $string
         );
         $string = preg_replace(
-            "/@vite?[\t\s　]*\([\t'\"\s　]*([^\)\n'\"]*?)[\t'\"\n\s　]*\);?/u",
+            "/@vite?[\t\s　]*\([\t\s　]*([^\)\n'\"]*?)[\t\n\s　]*\);?/u",
             "@vite($1)",
             $string
         );
