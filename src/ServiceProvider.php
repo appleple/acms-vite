@@ -48,7 +48,7 @@ class ServiceProvider extends ACMS_App
         Application::singleton('vite.helper', Vite::class, [
             env('VITE_DEV_SERVER_URL'),
             env('VITE_MANIFEST_PATH'),
-            env('VITE_ENVIRONMENT', 'development')
+            env('VITE_ENVIRONMENT', 'production'),
         ]);
         $hook = HookFactory::singleton();
         $hook->attach('vite.hook', new Hook());
