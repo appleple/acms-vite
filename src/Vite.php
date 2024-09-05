@@ -347,14 +347,14 @@ class Vite
                 throw new ManifestNotFoundException('Manifest file not found.');
             }
         } catch (\Exception $e) {
-            if (class_exists('Logger')) {
+            if (class_exists('AcmsLogger')) {
                 Logger::error('【Vite plugin】manifest.json を取得できませんでした。', Common::exceptionArray($e));
             }
             return null;
         }
         $decodedManifest = json_decode($manifest, true);
         if (!is_array($decodedManifest)) {
-            if (class_exists('Logger')) {
+            if (class_exists('AcmsLogger')) {
                 Logger::error('【Vite plugin】manifest.json のデコードに失敗しました。');
             }
             return null;
