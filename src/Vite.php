@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Acms\Plugins\Vite;
 
 use Acms\Plugins\Vite\Exceptions\ManifestNotFoundException;
-use Acms\Services\Facades\Cache;
 use Acms\Services\Facades\Storage;
 use Acms\Services\Facades\Logger;
 use Acms\Services\Facades\Common;
@@ -20,9 +19,11 @@ class Vite
     ];
 
     /**
-     * @var \Acms\Services\Cache\Contracts\AdapterInterface
+     * 簡易キャッシュのためのメモリ上の配列
+     *
+     * @var array
      */
-    private $cache;
+    private $cache = [];
 
     /**
      * @var string
@@ -53,7 +54,6 @@ class Vite
         $this->devServerUrl = $devServerUrl;
         $this->manifestPath = $manifestPath;
         $this->environment = $environment;
-        $this->cache = Cache::temp();
     }
 
     /**
@@ -103,15 +103,15 @@ class Vite
             return '';
         }
         return sprintf(
-            <<<'HTML'
-            <script type="module">
-                import RefreshRuntime from '%s'
-                RefreshRuntime.injectIntoGlobalHook(window)
-                window.$RefreshReg$ = () => {}
-                window.$RefreshSig$ = () => (type) => type
-                window.__vite_plugin_react_preamble_installed__ = true
-            </script>
-            HTML,
+            implode(PHP_EOL, [
+                '<script type="module">',
+                '    import RefreshRuntime from \'%s\'',
+                '    RefreshRuntime.injectIntoGlobalHook(window)',
+                '    window.$RefreshReg$ = () => {}',
+                '    window.$RefreshSig$ = () => (type) => type',
+                '    window.__vite_plugin_react_preamble_installed__ = true',
+                '</script>'
+            ]),
             $this->getDevServerUrl() . '/@react-refresh'
         );
     }
@@ -165,6 +165,9 @@ class Vite
         }
 
         $manifest = $this->getManifest();
+        if (is_null($manifest)) {
+            return '';
+        }
         $paths = [];
         foreach ($entrypoints as $entrypoint) {
             if (array_key_exists($entrypoint, $manifest)) {
@@ -212,6 +215,9 @@ class Vite
 
         $outDir = trim($outDir, '/');
         $manifest = $this->getManifest();
+        if (is_null($manifest)) {
+            return '';
+        }
         $cssPaths = [];
         foreach ($entrypoints as $entrypoint) {
             foreach ($manifest[$entrypoint]['css'] ?? [] as $file) {
@@ -246,6 +252,9 @@ class Vite
 
         $outDir = trim($outDir, '/');
         $manifest = $this->getManifest();
+        if (is_null($manifest)) {
+            return '';
+        }
         $cssPaths = [];
         foreach ($entrypoints as $entrypoint) {
             foreach ($manifest[$entrypoint]['imports'] ?? [] as $import) {
@@ -285,6 +294,9 @@ class Vite
 
         $outDir = trim($outDir, '/');
         $manifest = $this->getManifest();
+        if (is_null($manifest)) {
+            return '';
+        }
         $preloadPaths = [];
         foreach ($entrypoints as $entrypoint) {
             foreach ($manifest[$entrypoint]['imports'] ?? [] as $import) {
@@ -317,14 +329,17 @@ class Vite
 
     /**
      * Get manifest
-     * @return array<string, mixed>
+     * @return array<string, mixed>|null
      */
-    private function getManifest(): array
+    private function getManifest(): ?array
     {
         $path = $this->getManifestPath();
         $cacheKey = md5($path);
-        if ($this->cache->has($cacheKey)) {
-            return json_decode($this->cache->get($cacheKey), true);
+        if ($this->hasCache($cacheKey)) {
+            $cachedManifest = json_decode($this->getCache($cacheKey), true);
+            if (is_array($cachedManifest)) {
+                return $cachedManifest;
+            }
         }
         try {
             $manifest = Storage::get($path);
@@ -332,11 +347,20 @@ class Vite
                 throw new ManifestNotFoundException('Manifest file not found.');
             }
         } catch (\Exception $e) {
-            Logger::error('【Vite plugin】manifest.json を取得できませんでした。', Common::exceptionArray($e));
-            return [];
+            if (class_exists('Logger')) {
+                Logger::error('【Vite plugin】manifest.json を取得できませんでした。', Common::exceptionArray($e));
+            }
+            return null;
         }
-        $this->cache->put($cacheKey, $manifest);
-        return json_decode($manifest, true);
+        $decodedManifest = json_decode($manifest, true);
+        if (!is_array($decodedManifest)) {
+            if (class_exists('Logger')) {
+                Logger::error('【Vite plugin】manifest.json のデコードに失敗しました。');
+            }
+            return null;
+        }
+        $this->putCache($cacheKey, $manifest);
+        return $decodedManifest;
     }
 
     /**
@@ -423,5 +447,41 @@ class Vite
     private function isCssPath(string $path): bool
     {
         return preg_match('/\.(css|less|sass|scss|styl|stylus|pcss|postcss)$/', $path) === 1;
+    }
+
+    /**
+     * キャッシュに値を保存する
+     *
+     * @param string $key
+     * @param mixed $value
+     */
+    private function putCache(string $key, $value): void
+    {
+        $this->cache[$key] = $value;
+    }
+
+
+    /**
+     * キャッシュが存在するか確認する
+     *
+     * @param string $key
+     *
+     * @return bool
+     */
+    private function hasCache(string $key): bool
+    {
+        return isset($this->cache[$key]);
+    }
+
+    /**
+     * キャッシュから値を取得する
+     *
+     * @param string $key
+     *
+     * @return mixed
+     */
+    private function getCache(string $key)
+    {
+        return $this->cache[$key] ?? null;
     }
 }
