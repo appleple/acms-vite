@@ -5,7 +5,7 @@ a-blog cms でViteを利用するための拡張アプリです。
 ## 動作条件
 
 - a-blog cms: Ver. 3.1.0 – 3.2.x (3.3+ not tested yet)
-- PHP: 7.3 – 8.5
+- PHP: 7.3 – 8.5 (8.6+ not tested yet)
 
 ## ダウンロード
 
