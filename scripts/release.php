@@ -70,10 +70,10 @@ try {
         printf("Packaged %s (%s bytes)\n", $zipPath, number_format((float) filesize($zipPath)));
     }
 
-    // 3) コミット & タグ
+    // 3) コミット & タグ（注釈付きタグにする: 軽量タグは push --follow-tags で送られないため）
     $git('add -A');
     $git('commit -m ' . escapeshellarg($tag));
-    $git('tag ' . escapeshellarg($tag));
+    $git('tag -a ' . escapeshellarg($tag) . ' -m ' . escapeshellarg($tag));
 
     if ($push) {
         $git('push --follow-tags');
