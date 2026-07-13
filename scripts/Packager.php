@@ -50,17 +50,6 @@ final class Packager
     }
 
     /**
-     * Whether the built zip's filename carries the version (e.g. Skeleton1.2.3.zip). Useful when the
-     * artifact travels as a bare file (downloaded from CI, uploaded to Drive, etc.) and the version
-     * must stay recognizable. Independent of where/how the plugin is published — set it on GitHub or
-     * Bitbucket alike. composer.json `extra.acms-plugin-tools.versionInZipName` (bool, default false).
-     */
-    public function versionInZipName(): bool
-    {
-        return (bool) ($this->extraConfig()['versionInZipName'] ?? false);
-    }
-
-    /**
      * Root-level paths bundled alongside src/. Override via composer.json
      * `extra.acms-plugin-tools.extras`; defaults to self::DEFAULT_EXTRAS.
      *
@@ -77,14 +66,24 @@ final class Packager
     }
 
     /**
-     * Base name (without extension) of the built zip: the plugin name, plus the version when
-     * versionInZipName() is enabled (e.g. Skeleton1.2.3).
+     * Base name (without extension) of the built zip, rendered from the `zipFileName` template in
+     * composer.json `extra.acms-plugin-tools` (default "{pluginName}"). Placeholders:
+     *   {pluginName} – plugin/folder name (from autoload.psr-4)
+     *   {version}    – current $version from src/ServiceProvider.php
+     * e.g. "{pluginName}v{version}" → "Skeletonv1.2.3". Keeping the version in the name helps when
+     * the artifact is downloaded and distributed by hand; add more placeholders here as needed.
      */
     public function zipBaseName(): string
     {
-        $name = $this->pluginName();
+        $template = (string) ($this->extraConfig()['zipFileName'] ?? '{pluginName}');
+        if ($template === '') {
+            $template = '{pluginName}';
+        }
 
-        return $this->versionInZipName() ? $name . $this->currentVersion() : $name;
+        return strtr($template, [
+            '{pluginName}' => $this->pluginName(),
+            '{version}' => $this->currentVersion(),
+        ]);
     }
 
     /**
@@ -267,7 +266,7 @@ final class Packager
     }
 
     /**
-     * The `extra.acms-plugin-tools` object from composer.json (extras / versionInZipName), or []
+     * The `extra.acms-plugin-tools` object from composer.json (extras / zipFileName), or []
      * if absent.
      *
      * @return array<string, mixed>
