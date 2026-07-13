@@ -3,4 +3,5 @@ vendor
 node_modules
 .DS_Store
 .idea
-/Vite
+# 配布 zip は tag push 時に release.yml がビルドして GitHub Release へ公開するため管理外
+/build/

@@ -9,7 +9,7 @@ a-blog cms でViteを利用するための拡張アプリです。
 
 ## ダウンロード
 
-[Vite for a-blog cms](https://github.com/appleple/acms-vite/raw/master/build/Vite.zip)
+[Vite for a-blog cms](https://github.com/appleple/acms-vite/releases/latest)
 
 ## インストール
 
