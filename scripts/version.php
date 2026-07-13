@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 /**
- * src/ServiceProvider.php（バージョンの単一情報源）のプラグインバージョンを設定する。
+ * Set the plugin version in src/ServiceProvider.php (the single source of truth).
  *
- * 使い方:
- *   php scripts/version.php 1.2.3     # 明示的にバージョンを設定
- *   php scripts/version.php patch     # 現在のバージョンを上げる（patch|minor|major）
+ * Usage:
+ *   php scripts/version.php 1.2.3     # set an explicit version
+ *   php scripts/version.php patch     # bump the current version (patch|minor|major)
  */
 
 require __DIR__ . '/Packager.php';

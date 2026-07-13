@@ -3,19 +3,15 @@
 declare(strict_types=1);
 
 /**
- * リリースを切る: バージョンを上げ、コミットして git タグ v{X.Y.Z} を作成する。
+ * Cut a release: bump the version, commit, and create a git tag.
  *
- * 使い方:
- *   php scripts/release.php patch            # bump + commit + tag （push はしない）
- *   php scripts/release.php minor --push     # コミットとタグの push まで行う
+ * Usage:
+ *   php scripts/release.php patch            # bump + commit + tag  (does NOT push)
+ *   php scripts/release.php minor --push     # also push the commit and tag
  *
- * 既定では push しない。タグの push は後戻りしづらい操作（GitHub では Release CI の発火、
- * いずれの場合も公開版の確定）なので、人が意図して実行する。自動化したい場合のみ --push を付ける。
- *
- * リリースモード（composer.json の extra.acms-plugin.release）で挙動が変わる:
- *   - github : zip はビルドしない（tag push で release.yml が composer package して Release 公開）。
- *   - local  : ここでバージョン付き zip（build/{Name}{version}.zip）を作りコミットに含める。
- *              push 後、その zip を手動で Google Drive にアップロードする。
+ * By default this stops after creating the local tag and prints the push command, because
+ * pushing a v* tag triggers the public Release workflow — an outward-facing, hard-to-undo step
+ * that should be pulled deliberately by a human. Pass --push to opt into pushing automatically.
  */
 
 require __DIR__ . '/Packager.php';
@@ -40,9 +36,9 @@ if ($part === null) {
 }
 
 /**
- * プロジェクトルートで git コマンドを実行する。まずコマンドを表示し、非ゼロ終了で中断する。
+ * Run a shell command from the project root, echoing it first; abort on a non-zero exit.
  */
-$git = static function (string $command) use ($root): void {
+$run = static function (string $command) use ($root): void {
     $full = 'git -C ' . escapeshellarg($root) . ' ' . $command;
     echo $full, "\n";
     $status = 1;
@@ -55,28 +51,24 @@ $git = static function (string $command) use ($root): void {
 
 try {
     $packager = new Packager($root);
-    $mode = $packager->releaseMode();
     $current = $packager->currentVersion();
     $new = Packager::bumpVersion($current, $part);
     $tag = "v{$new}";
 
-    // 1) バージョンを更新（src/ServiceProvider.php）
     $packager->setVersion($new);
-    echo "Version: {$current} -> {$new} (mode: {$mode})\n";
+    echo "Version: {$current} -> {$new}\n";
 
-    // 2) コミット & タグ（zip のビルド・公開は CI が担当）
-    //    注釈付きタグにする: 軽量タグは push --follow-tags で送られないため
-    $git('add -A');
-    $git('commit -m ' . escapeshellarg($tag));
-    $git('tag -a ' . escapeshellarg($tag) . ' -m ' . escapeshellarg($tag));
+    $run('add -A');
+    $run('commit -m ' . escapeshellarg($tag));
+    // Annotated tag: `git push --follow-tags` only pushes annotated tags, so a lightweight
+    // `git tag <tag>` would never reach the remote and the Release workflow would not fire.
+    $run('tag -a ' . escapeshellarg($tag) . ' -m ' . escapeshellarg($tag));
 
     if ($push) {
-        $git('push --follow-tags');
-        echo $mode === 'github'
-            ? "Pushed {$tag}. release.yml が zip をビルドして GitHub Release を公開します。\n"
-            : "Pushed {$tag}. bitbucket-pipelines.yml が zip をビルドします。Bitbucket の UI（Downloads／アーティファクト）から取得して Google Drive にアップロードしてください。\n";
+        $run('push --follow-tags');
+        echo "Pushed {$tag}. CI (release.yml / bitbucket-pipelines.yml) builds and publishes the zip for this tag.\n";
     } else {
-        echo "\nCreated local tag {$tag}. 公開するには push してください:\n";
+        echo "\nCreated local tag {$tag}. To publish, push it:\n";
         echo "  git push --follow-tags\n";
     }
 } catch (Throwable $e) {

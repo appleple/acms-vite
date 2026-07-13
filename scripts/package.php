@@ -3,11 +3,14 @@
 declare(strict_types=1);
 
 /**
- * 配布用プラグイン zip（build/{Name}.zip）を作成する。
+ * Build the distributable plugin zip (build/{Name}.zip).
  *
- * 使い方:
- *   php scripts/package.php                        # zip を作成
- *   php scripts/package.php --check-version=1.2.3  # ServiceProvider の $version == 1.2.3 を検証
+ * Usage:
+ *   php scripts/package.php                     # build the zip
+ *   php scripts/package.php --check-version=1.2.3   # assert ServiceProvider $version == 1.2.3
+ *
+ * The --check-version mode is used by the Release workflow to fail fast when a pushed tag
+ * (e.g. v1.2.3) disagrees with the version baked into src/ServiceProvider.php.
  */
 
 require __DIR__ . '/Packager.php';

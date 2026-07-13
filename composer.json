@@ -23,8 +23,7 @@
         "phpcompatibility/php-compatibility": "*"
     },
     "extra": {
-        "acms-plugin": {
-            "release": "github",
+        "acms-plugin-tools": {
             "extras": ["docs"]
         }
     },

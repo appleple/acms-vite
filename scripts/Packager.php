@@ -13,19 +13,28 @@ use ZipArchive;
 
 /**
  * Release helper shared by scripts/package.php, scripts/version.php and scripts/release.php.
- * acms-plugin-skeleton の Packager を基に、GitHub（CI 公開）と Bitbucket（ローカルビルド＋手動配布）の
- * 両運用を composer.json の extra.acms-plugin で切り替えられるようにしたもの。
- * スクリプトはプラグイン間で共通（この Acms\PluginTools 名前空間のまま）にでき、差分は composer.json だけ。
+ * Packaging / versioning chores run in plain PHP (ZipArchive) via Composer scripts. See README.md
+ * ("Releasing").
  *
- * プラグインのバージョンの単一情報源は src/ServiceProvider.php の $version。
- * composer.json に "version" は持たせない（git tag と競合するため）。
+ * The single source of truth for the plugin version is `$version` in src/ServiceProvider.php.
+ * Do NOT add a "version" field to composer.json: Composer derives versions from git tags, and a
+ * hard-coded value competes with the tag (the most common cause of "release not published").
  */
 final class Packager
 {
-    /** zip の中に絶対に含めないもの（src/ 側にあった場合の保険）。 */
+    /**
+     * Files that must never ship inside the deployed plugin folder. `src/composer.json` /
+     * `src/composer.lock` only manage the (optional) bundled runtime dependencies at build time;
+     * they are useless — and confusing — inside the installed plugin.
+     */
     private const IGNORES = ['composer.json', 'composer.lock'];
 
-    /** extra.acms-plugin.extras 未指定時に src/ と一緒に同梱するルート直下の既定候補。 */
+    /**
+     * Default root-level files/dirs bundled alongside src/ when present. Override per plugin via
+     * composer.json `extra.acms-plugin-tools.extras` (e.g. ["docs"]). `images/` is the plugin thumbnail
+     * a-blog cms shows in the admin; LICENSE is removed by post-create-project, so it is only
+     * bundled when the plugin author added one back.
+     */
     private const DEFAULT_EXTRAS = ['README.md', 'LICENSE', 'images'];
 
     public function __construct(private string $root)
@@ -33,7 +42,7 @@ final class Packager
     }
 
     /**
-     * composer.json の autoload.psr-4（src/ に対応する名前空間）末尾からプラグイン名を導出する。
+     * Derive the plugin folder name (e.g. "Skeleton") from the composer.json in the project root.
      */
     public function pluginName(): string
     {
@@ -41,23 +50,19 @@ final class Packager
     }
 
     /**
-     * リリース運用モード:
-     *   "github"    … GitHub Actions が tag で zip をビルドし GitHub Release として公開。zip 名は {Name}.zip。
-     *   "bitbucket" … Bitbucket Pipelines が tag で zip をビルドし、アーティファクト／Downloads で配布。
-     *                 GDrive 等で版を識別できるよう zip 名にバージョンを付ける（{Name}{version}.zip）。
-     * どちらも zip のビルド・公開は CI が担当し、build/ は Git 管理外。
-     * composer.json の extra.acms-plugin.release で指定（未指定なら "github"）。
+     * Whether the built zip's filename carries the version (e.g. Skeleton1.2.3.zip). Useful when the
+     * artifact travels as a bare file (downloaded from CI, uploaded to Drive, etc.) and the version
+     * must stay recognizable. Independent of where/how the plugin is published — set it on GitHub or
+     * Bitbucket alike. composer.json `extra.acms-plugin-tools.versionInZipName` (bool, default false).
      */
-    public function releaseMode(): string
+    public function versionInZipName(): bool
     {
-        $mode = $this->extraConfig()['release'] ?? 'github';
-
-        return in_array($mode, ['github', 'bitbucket'], true) ? $mode : 'github';
+        return (bool) ($this->extraConfig()['versionInZipName'] ?? false);
     }
 
     /**
-     * src/ と一緒に同梱するルート直下の相対パス一覧。
-     * composer.json の extra.acms-plugin.extras で上書きできる（未指定なら DEFAULT_EXTRAS）。
+     * Root-level paths bundled alongside src/. Override via composer.json
+     * `extra.acms-plugin-tools.extras`; defaults to self::DEFAULT_EXTRAS.
      *
      * @return list<string>
      */
@@ -72,17 +77,18 @@ final class Packager
     }
 
     /**
-     * 生成する zip のベース名（拡張子なし）。local モードはバージョンを付ける（例: GoogleDrive1.1.1）。
+     * Base name (without extension) of the built zip: the plugin name, plus the version when
+     * versionInZipName() is enabled (e.g. Skeleton1.2.3).
      */
     public function zipBaseName(): string
     {
         $name = $this->pluginName();
 
-        return $this->releaseMode() === 'bitbucket' ? $name . $this->currentVersion() : $name;
+        return $this->versionInZipName() ? $name . $this->currentVersion() : $name;
     }
 
     /**
-     * src/ServiceProvider.php に宣言されている現在のバージョンを読む。
+     * Read the version currently declared in src/ServiceProvider.php.
      */
     public function currentVersion(): string
     {
@@ -92,7 +98,7 @@ final class Packager
     }
 
     /**
-     * src/ServiceProvider.php の $version を書き換え、書き込んだ値を返す。
+     * Overwrite `$version` in src/ServiceProvider.php and return the value that was written.
      */
     public function setVersion(string $newVersion): string
     {
@@ -104,7 +110,7 @@ final class Packager
     }
 
     /**
-     * build/{ベース名}.zip（トップ階層は {Name}/…）を作成し、その zip パスを返す。
+     * Build build/{Name}.zip (top-level entry is {Name}/…) and return the zip path.
      */
     public function build(): string
     {
@@ -114,7 +120,7 @@ final class Packager
             throw new RuntimeException("src/ not found at {$srcDir}");
         }
 
-        // プラグインが自前の実行時依存を持つ場合は src/vendor/ へ先に vendoring する。
+        // If the plugin bundles its own runtime dependencies, vendor them into src/vendor/ first.
         if (is_file($srcDir . '/composer.json')) {
             $this->installRuntimeDeps($srcDir);
         }
@@ -145,7 +151,7 @@ final class Packager
     }
 
     // ---------------------------------------------------------------------
-    // 純粋ヘルパー（副作用なし）
+    // Pure helpers (no filesystem side effects) — easy to reason about/reuse.
     // ---------------------------------------------------------------------
 
     public static function pluginNameFromComposer(string $contents): string
@@ -161,7 +167,7 @@ final class Packager
             throw new RuntimeException('composer.json has no autoload.psr-4 entry.');
         }
 
-        // src/ に対応する名前空間を優先する（配布されるプラグインルート）。
+        // Prefer the namespace that maps to src/ (the deployed plugin root).
         $key = null;
         foreach ($psr4 as $namespace => $path) {
             foreach ((array) $path as $p) {
@@ -247,20 +253,8 @@ final class Packager
     }
 
     // ---------------------------------------------------------------------
-    // 内部ヘルパー
+    // Filesystem / process helpers.
     // ---------------------------------------------------------------------
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function extraConfig(): array
-    {
-        /** @var array<string, mixed>|null $data */
-        $data = json_decode($this->composerContents(), true);
-        $config = $data['extra']['acms-plugin'] ?? [];
-
-        return is_array($config) ? $config : [];
-    }
 
     private function composerContents(): string
     {
@@ -270,6 +264,21 @@ final class Packager
         }
 
         return (string) file_get_contents($composerJson);
+    }
+
+    /**
+     * The `extra.acms-plugin-tools` object from composer.json (extras / versionInZipName), or []
+     * if absent.
+     *
+     * @return array<string, mixed>
+     */
+    private function extraConfig(): array
+    {
+        /** @var array<string, mixed>|null $data */
+        $data = json_decode($this->composerContents(), true);
+        $config = $data['extra']['acms-plugin-tools'] ?? [];
+
+        return is_array($config) ? $config : [];
     }
 
     private function serviceProviderPath(): string
