@@ -41,15 +41,18 @@ final class Packager
     }
 
     /**
-     * リリース運用モード: "github"（CI が Release として公開・zip 名は {Name}.zip・build は非管理）
-     * または "local"（ローカルでバージョン付き zip を作りリポに含める・手動で GDrive へ）。
+     * リリース運用モード:
+     *   "github"    … GitHub Actions が tag で zip をビルドし GitHub Release として公開。zip 名は {Name}.zip。
+     *   "bitbucket" … Bitbucket Pipelines が tag で zip をビルドし、アーティファクト／Downloads で配布。
+     *                 GDrive 等で版を識別できるよう zip 名にバージョンを付ける（{Name}{version}.zip）。
+     * どちらも zip のビルド・公開は CI が担当し、build/ は Git 管理外。
      * composer.json の extra.acms-plugin.release で指定（未指定なら "github"）。
      */
     public function releaseMode(): string
     {
         $mode = $this->extraConfig()['release'] ?? 'github';
 
-        return in_array($mode, ['github', 'local'], true) ? $mode : 'github';
+        return in_array($mode, ['github', 'bitbucket'], true) ? $mode : 'github';
     }
 
     /**
@@ -75,7 +78,7 @@ final class Packager
     {
         $name = $this->pluginName();
 
-        return $this->releaseMode() === 'local' ? $name . $this->currentVersion() : $name;
+        return $this->releaseMode() === 'bitbucket' ? $name . $this->currentVersion() : $name;
     }
 
     /**

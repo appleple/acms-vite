@@ -64,13 +64,8 @@ try {
     $packager->setVersion($new);
     echo "Version: {$current} -> {$new} (mode: {$mode})\n";
 
-    // 2) local モードのみ、配布 zip をここで作る（リポジトリに含める運用）
-    if ($mode === 'local') {
-        $zipPath = $packager->build();
-        printf("Packaged %s (%s bytes)\n", $zipPath, number_format((float) filesize($zipPath)));
-    }
-
-    // 3) コミット & タグ（注釈付きタグにする: 軽量タグは push --follow-tags で送られないため）
+    // 2) コミット & タグ（zip のビルド・公開は CI が担当）
+    //    注釈付きタグにする: 軽量タグは push --follow-tags で送られないため
     $git('add -A');
     $git('commit -m ' . escapeshellarg($tag));
     $git('tag -a ' . escapeshellarg($tag) . ' -m ' . escapeshellarg($tag));
@@ -79,13 +74,10 @@ try {
         $git('push --follow-tags');
         echo $mode === 'github'
             ? "Pushed {$tag}. release.yml が zip をビルドして GitHub Release を公開します。\n"
-            : "Pushed {$tag}. build/ のバージョン付き zip を Google Drive にアップロードしてください。\n";
+            : "Pushed {$tag}. bitbucket-pipelines.yml が zip をビルドします。Bitbucket の UI（Downloads／アーティファクト）から取得して Google Drive にアップロードしてください。\n";
     } else {
         echo "\nCreated local tag {$tag}. 公開するには push してください:\n";
         echo "  git push --follow-tags\n";
-        if ($mode === 'local') {
-            echo "その後 build/ のバージョン付き zip を Google Drive にアップロードしてください。\n";
-        }
     }
 } catch (Throwable $e) {
     fwrite(STDERR, $e->getMessage() . "\n");
