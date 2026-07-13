@@ -1,5 +1,5 @@
 {
-    "name": "com.appleple/acms-vite",
+    "name": "appleple/acms-vite",
     "description": "Viteを利用するための拡張アプリです。",
     "license": "MIT",
     "autoload": {
